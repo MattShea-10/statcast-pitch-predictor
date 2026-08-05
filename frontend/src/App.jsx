@@ -239,17 +239,33 @@ export default function App() {
     return pool.reduce((a, b) => (b.probability > a.probability ? b : a));
   }
 
+  // Ignores the ball-vs-strike split entirely and just picks the single most
+  // likely of the 9 in-zone cells -- used for the 3rd-5th ranked pitches so
+  // they always land somewhere hittable in the zone (a real target a pitcher
+  // might actually throw for a strike) instead of occasionally landing in an
+  // out-of-zone chase corner, which reads oddly for a pitch that's already
+  // the 3rd-5th most likely candidate rather than "the" pick.
+  function bestInZone(dist) {
+    if (!dist || dist.length === 0) return null;
+    const inZone = dist.filter((d) => d.zone <= 9);
+    const pool = inZone.length ? inZone : dist;
+    return pool.reduce((a, b) => (b.probability > a.probability ? b : a));
+  }
+
   // The top N most likely pitches (already ranked by probability, N picked
   // by the user via the selector below), each paired with where THAT
   // specific pitch tends to go -- so the 3D view can fly all N realistic
-  // paths at once instead of just the single top pick.
-  const topNPitches = (result?.pitch_type || []).slice(0, topNCount).map((p) => {
+  // paths at once instead of just the single top pick. Only the top 2 use
+  // the honest ball-vs-strike-aware pick; ranks 3-5 are routed to their most
+  // likely in-zone (strike) location instead -- see bestInZone above.
+  const topNPitches = (result?.pitch_type || []).slice(0, topNCount).map((p, i) => {
     const zoneDist = result?.zone_by_pitch?.[p.code];
+    const zonePick = i < 2 ? bestZone(zoneDist) : bestInZone(zoneDist);
     return {
       code: p.code,
       name: p.name,
       probability: p.probability,
-      zone: bestZone(zoneDist)?.zone ?? null,
+      zone: zonePick?.zone ?? null,
     };
   });
 
