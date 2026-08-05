@@ -61,8 +61,14 @@ def load_artifacts():
     _state["zone_labels"] = artifacts["zone_labels"]
     _state["feature_columns"] = artifacts["feature_columns"]
     _state["metrics"] = artifacts["metrics"]
-    _state["pitch_model"] = joblib.load(pitch_model_path)
-    _state["zone_model"] = joblib.load(zone_model_path)
+    # mmap_mode="r": the pitch/zone models are RandomForests whose bulk is
+    # plain numpy arrays (tree node arrays). Memory-mapping instead of fully
+    # loading into RAM lets the OS page those arrays in on demand and share/
+    # evict them, which is the difference between fitting in Render's 512MB
+    # free-tier instance and OOMing on startup. Requires the .joblib files to
+    # be uncompressed (train.py's joblib.dump calls already are, by default).
+    _state["pitch_model"] = joblib.load(pitch_model_path, mmap_mode="r")
+    _state["zone_model"] = joblib.load(zone_model_path, mmap_mode="r")
     _state["loaded"] = True
 
 
