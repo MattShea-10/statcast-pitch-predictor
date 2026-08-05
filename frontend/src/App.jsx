@@ -436,7 +436,23 @@ export default function App() {
           )}
           {result && (
             <>
-              <h3 className="mb-2 mt-1 text-[11px] uppercase tracking-wide text-base-content/50">Pitch Type</h3>
+              <div className="mb-2 mt-1 flex items-center justify-between">
+                <h3 className="text-[11px] uppercase tracking-wide text-base-content/50">Pitch Type</h3>
+                {result.pitch_type?.length > 0 && (
+                  <select
+                    className="select select-bordered select-xs w-auto max-w-[220px]"
+                    value={activePitchCode || ""}
+                    onChange={(e) => setSelectedPitch(e.target.value)}
+                    aria-label="Jump to one of the top predicted pitches"
+                  >
+                    {result.pitch_type.slice(0, 5).map((p, i) => (
+                      <option key={p.code} value={p.code}>
+                        #{i + 1} {p.name} ({Math.round(p.probability * 100)}%)
+                      </option>
+                    ))}
+                  </select>
+                )}
+              </div>
               <PitchTypeChart data={result.pitch_type} selected={activePitchCode} onSelect={setSelectedPitch} />
 
               <h3 className="mb-2 mt-4 text-[11px] uppercase tracking-wide text-base-content/50">
