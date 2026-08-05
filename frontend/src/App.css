@@ -1,0 +1,3 @@
+/* Styling has moved to Tailwind utility classes directly in the JSX (see
+   src/index.css for the Tailwind entry point). This file is intentionally
+   unused and kept only so nothing imports a missing path. */

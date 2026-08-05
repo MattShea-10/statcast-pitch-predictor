@@ -1,0 +1,46 @@
+@import "tailwindcss";
+@plugin "daisyui";
+@plugin "daisyui/theme" {
+  name: "forecast";
+  default: true;
+  color-scheme: dark;
+
+  --color-base-100: #0b100d;
+  --color-base-200: #10160f;
+  --color-base-300: #263129;
+  --color-base-content: #c7d3c9;
+  --color-primary: #d6453c;
+  --color-primary-content: #ffffff;
+  --color-secondary: #1c2b4a;
+  --color-secondary-content: #cfe0ff;
+  --color-accent: #2e63b8;
+  --color-accent-content: #ffffff;
+  --color-neutral: #1a2118;
+  --color-neutral-content: #c7d3c9;
+  --color-info: #2e63b8;
+  --color-info-content: #ffffff;
+  --color-success: #4f8f5f;
+  --color-success-content: #ffffff;
+  --color-warning: #c98a3a;
+  --color-warning-content: #1a1207;
+  --color-error: #d6453c;
+  --color-error-content: #ffffff;
+
+  --radius-selector: 999px;
+  --radius-field: 0.25rem;
+  --radius-box: 0.25rem;
+  --size-selector: 0.25rem;
+  --size-field: 0.25rem;
+  --border: 1px;
+  --depth: 0;
+  --noise: 0;
+}
+
+body {
+  margin: 0;
+  font-family: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+  background-color: #0b100d;
+  background-image:
+    radial-gradient(circle at center, rgba(199, 211, 201, 0.05) 1px, transparent 1px);
+  background-size: 26px 26px;
+}
