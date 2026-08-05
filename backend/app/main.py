@@ -23,7 +23,7 @@ from pydantic import BaseModel, Field
 
 from app.features import (
     PITCH_TYPE_ALIASES, PITCH_TYPE_NAMES, ZONE_LABELS, make_feature_row, pitcher_count_dist,
-    pitcher_runners_dist, pitcher_zone_for_pitch_count, pitcher_velo_for_pitch,
+    pitcher_runners_dist, pitcher_zone_for_pitch, pitcher_velo_for_pitch,
     pitcher_vs_batter_pitch, pitcher_vs_batter_zone, batter_hit_rate_for_zone,
 )
 
@@ -358,10 +358,20 @@ def predict(situation: Situation):
     for code in pitch_model.classes_:
         if code not in arsenal:
             continue
-        pitch_count_dist = pitcher_zone_for_pitch_count(pp, code, situation.balls, situation.strikes)
+        # NOTE: this used to look up a stored (pitch_type, exact count) zone
+        # distribution via pitcher_zone_for_pitch_count. That structure was
+        # dropped to fix the Render OOM (see features.py), and its fallback
+        # -- this pitch's static overall zone mix -- made location
+        # predictions stop responding to the count entirely. Blending in
+        # count_zone_dist (the pitcher's overall zone-by-count tendency,
+        # still cheap/available) restores real count-sensitivity without
+        # bringing back the expensive per-pitch-per-count structure.
+        this_pitch_zone = pitcher_zone_for_pitch(pp, code)
         dist = {
-            z: 0.7 * pitch_count_dist.get(z, 0.0) + 0.3 * runners_zone_dist.get(z, 0.0)
-            for z in pitch_count_dist
+            z: 0.5 * this_pitch_zone.get(z, 0.0)
+            + 0.3 * count_zone_dist.get(z, 0.0)
+            + 0.2 * runners_zone_dist.get(z, 0.0)
+            for z in set(this_pitch_zone) | set(count_zone_dist) | set(runners_zone_dist)
         }
         total = sum(dist.values())
         if total > 0:
