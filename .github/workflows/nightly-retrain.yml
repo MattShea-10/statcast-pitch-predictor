@@ -1,0 +1,56 @@
+name: Nightly data refresh + retrain
+
+# Pulls the latest Statcast data, retrains the pitch/zone models, and pushes
+# the result back to main. Render's auto-deploy (already enabled on the
+# statcast-pitch-predictor-api service) picks up that push and redeploys
+# automatically, so this is the only automation needed to keep the deployed
+# app's predictions current.
+#
+# Runs during the MLB season; harmless (just a no-op commit skip) if it runs
+# during the off-season and pybaseball returns no new rows.
+
+on:
+  schedule:
+    # 09:00 UTC daily -- after West Coast night games have finished
+    # (~4-5am ET), before most people are checking the app in the morning.
+    - cron: "0 9 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        working-directory: backend
+        run: pip install -r requirements.txt
+
+      - name: Pull latest Statcast data
+        working-directory: backend
+        run: python -m app.data_pull
+
+      - name: Retrain models
+        working-directory: backend
+        run: python -m app.train
+
+      - name: Commit and push updated data/models
+        run: |
+          git config user.name "statcast-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add backend/data backend/models
+          if git diff --cached --quiet; then
+            echo "No changes -- data unchanged since last run."
+            exit 0
+          fi
+          git commit -m "Nightly data refresh + retrain ($(date -u +'%Y-%m-%d'))"
+          git push origin HEAD:main
