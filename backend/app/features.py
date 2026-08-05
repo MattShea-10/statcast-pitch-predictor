@@ -139,18 +139,21 @@ def build_pitcher_profiles(df: pd.DataFrame) -> dict:
             by_count_zone[(int(b), int(s))] = _shrunk_dist(
                 cg["zone"].value_counts(), overall_zone)
 
-        # This pitcher's real pitch/zone mix conditioned on WHO's on base
-        # (e.g. more fastballs with a runner on 1st to help control the
-        # running game, different approach with runners in scoring position)
-        # -- keyed by the exact (on_1b, on_2b, on_3b) combo, shrunk toward
-        # the pitcher's overall mix so rare base states (e.g. 2nd+3rd, no
-        # 1st) don't overfit to a handful of pitches.
-        by_runners_pitch = {}
-        by_runners_zone = {}
-        for (r1, r2, r3), rg in g.groupby(["on_1b", "on_2b", "on_3b"]):
-            key = (int(r1), int(r2), int(r3))
-            by_runners_pitch[key] = _shrunk_dist(rg["pitch_type"].value_counts(), overall_pitch)
-            by_runners_zone[key] = _shrunk_dist(rg["zone"].value_counts(), overall_zone)
+        # NOTE: this used to also store by_runners_pitch/by_runners_zone
+        # (mix conditioned on exact runners-on-base combo) and
+        # zone_by_pitch_count (zone mix conditioned on pitch type AND exact
+        # count). Both were cut -- not because they're not useful, but
+        # because their cardinality (runners combo, or pitch x count, per
+        # pitcher) balloons into tens of thousands of small Python dicts
+        # across ~1100 pitchers, which took the deployed artifacts blob from
+        # ~27MB on disk to ~390MB of actual Python object memory once
+        # loaded -- more than the 512MB Render gives the free-tier instance,
+        # by itself, before the models or anything else even loaded. The
+        # lookup functions (pitcher_runners_dist, pitcher_zone_for_pitch_count)
+        # already fall back gracefully to a less granular tendency when
+        # these keys are absent, so removing them degrades prediction
+        # granularity slightly (runners-on-base and pitch+count-specific
+        # location nuance) rather than breaking anything.
 
         # Where does THIS pitch type specifically tend to go for this
         # pitcher? (e.g. breaking balls down-and-away, fastballs up), shrunk
@@ -159,17 +162,6 @@ def build_pitcher_profiles(df: pd.DataFrame) -> dict:
         zone_by_pitch = {}
         for pitch, pg in g.groupby("pitch_type"):
             zone_by_pitch[pitch] = _shrunk_dist(pg["zone"].value_counts(), overall_zone)
-
-        # And within THAT pitch type, where does it go in THIS specific
-        # ball-strike count? (e.g. a slider buried low-away on 3-2 vs.
-        # thrown for a called strike more middle-middle on 1-1.) Shrunk
-        # toward that pitch type's overall zone mix -- not the pitcher's
-        # overall zone mix -- since (pitch, count) combos get sparse fast.
-        zone_by_pitch_count = {}
-        for (pitch, b, s), pcg in g.groupby(["pitch_type", "balls", "strikes"]):
-            prior = zone_by_pitch.get(pitch, overall_zone)
-            zone_by_pitch_count.setdefault(pitch, {})[(int(b), int(s))] = _shrunk_dist(
-                pcg["zone"].value_counts(), prior)
 
         # Average velocity for each pitch type this pitcher throws (e.g. "his
         # slider averages 84.2 mph"), so the UI can show a realistic speed
@@ -199,10 +191,7 @@ def build_pitcher_profiles(df: pd.DataFrame) -> dict:
             "overall_zone": overall_zone,
             "by_count_pitch": by_count_pitch,
             "by_count_zone": by_count_zone,
-            "by_runners_pitch": by_runners_pitch,
-            "by_runners_zone": by_runners_zone,
             "zone_by_pitch": zone_by_pitch,
-            "zone_by_pitch_count": zone_by_pitch_count,
             "velo_by_pitch": velo_by_pitch,
             "vs_batter_pitch_counts": vs_batter_pitch_counts,
             "vs_batter_zone_counts": vs_batter_zone_counts,
