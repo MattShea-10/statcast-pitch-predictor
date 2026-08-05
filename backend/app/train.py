@@ -91,8 +91,13 @@ def main():
     # predictions anchored to real usage frequency. Slightly shallower
     # trees + a higher min_samples_leaf also curb overfitting to specific
     # rare pitcher/batter/situation combinations.
+    # n_estimators=120 (down from 300): the deployed API runs on a 512MB
+    # instance, and 300 trees per model was pushing memory past that limit
+    # once both forests + pandas/sklearn were loaded together. Fewer trees
+    # roughly halves the in-memory/on-disk model size; RandomForest accuracy
+    # gains flatten out well before 300 trees, so this costs little.
     pitch_model = RandomForestClassifier(
-        n_estimators=300, max_depth=10, min_samples_leaf=15,
+        n_estimators=120, max_depth=10, min_samples_leaf=15,
         n_jobs=-1, random_state=42,
     )
     pitch_model.fit(X_train, y_pitch_train)
@@ -111,7 +116,7 @@ def main():
     # effect already discussed, and the 9 small in-zone cells aren't
     # artificially boosted to "match" them either.
     zone_model = RandomForestClassifier(
-        n_estimators=300, max_depth=10, min_samples_leaf=15,
+        n_estimators=120, max_depth=10, min_samples_leaf=15,
         n_jobs=-1, random_state=42,
     )
     zone_model.fit(X_train, y_zone_train)
