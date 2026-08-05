@@ -53,4 +53,13 @@ jobs:
             exit 0
           fi
           git commit -m "Nightly data refresh + retrain ($(date -u +'%Y-%m-%d'))"
-          git push origin HEAD:main
+          # main can have moved since this run's checkout (e.g. an overlapping
+          # manual run, or a code push landing mid-run) -- rebase our data
+          # commit on top of whatever's actually on main before pushing,
+          # retrying a couple times in case of another race.
+          for i in 1 2 3; do
+            git fetch origin main
+            git rebase origin/main && git push origin HEAD:main && break
+            echo "Push attempt $i failed, retrying..."
+            sleep 5
+          done
