@@ -62,6 +62,10 @@ export default function App() {
   const [situation, setSituation] = useState(savedState?.situation ?? initialSituation);
   const [result, setResult] = useState(null);
   const [selectedPitch, setSelectedPitch] = useState(null);
+  // How many of the top-ranked pitches to fly across the 3D scene at once --
+  // 1 shows just the top pick's trajectory/location, 5 shows all 5 flying
+  // together, each in its own color.
+  const [topNCount, setTopNCount] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
@@ -235,10 +239,11 @@ export default function App() {
     return pool.reduce((a, b) => (b.probability > a.probability ? b : a));
   }
 
-  // The two most likely pitches (already ranked by probability), each paired
-  // with where THAT specific pitch tends to go -- so the 3D view can show
-  // both realistic flight paths at once instead of just the single top pick.
-  const topTwoPitches = (result?.pitch_type || []).slice(0, 2).map((p) => {
+  // The top N most likely pitches (already ranked by probability, N picked
+  // by the user via the selector below), each paired with where THAT
+  // specific pitch tends to go -- so the 3D view can fly all N realistic
+  // paths at once instead of just the single top pick.
+  const topNPitches = (result?.pitch_type || []).slice(0, topNCount).map((p) => {
     const zoneDist = result?.zone_by_pitch?.[p.code];
     return {
       code: p.code,
@@ -258,7 +263,7 @@ export default function App() {
           pitchName={activePitchName}
           zone={bestZone(activeZoneData)?.zone}
           zoneData={activeZoneData}
-          topPitches={topTwoPitches}
+          topPitches={topNPitches}
           throwsR={pitcher ? pitcher.throws === "R" : true}
           standR={batter ? effectiveStand === "R" : true}
         />
@@ -439,18 +444,19 @@ export default function App() {
               <div className="mb-2 mt-1 flex items-center justify-between">
                 <h3 className="text-[11px] uppercase tracking-wide text-base-content/50">Pitch Type</h3>
                 {result.pitch_type?.length > 0 && (
-                  <select
-                    className="select select-bordered select-xs w-auto max-w-[220px]"
-                    value={activePitchCode || ""}
-                    onChange={(e) => setSelectedPitch(e.target.value)}
-                    aria-label="Jump to one of the top predicted pitches"
-                  >
-                    {result.pitch_type.slice(0, 5).map((p, i) => (
-                      <option key={p.code} value={p.code}>
-                        #{i + 1} {p.name} ({Math.round(p.probability * 100)}%)
-                      </option>
-                    ))}
-                  </select>
+                  <label className="flex items-center gap-1.5 text-[11px] text-base-content/50">
+                    Show top
+                    <select
+                      className="select select-bordered select-xs w-auto"
+                      value={topNCount}
+                      onChange={(e) => setTopNCount(Number(e.target.value))}
+                      aria-label="How many top predicted pitches to fly across the 3D scene"
+                    >
+                      {Array.from({ length: Math.min(5, result.pitch_type.length) }, (_, i) => i + 1).map((n) => (
+                        <option key={n} value={n}>{n}</option>
+                      ))}
+                    </select>
+                  </label>
                 )}
               </div>
               <PitchTypeChart data={result.pitch_type} selected={activePitchCode} onSelect={setSelectedPitch} />

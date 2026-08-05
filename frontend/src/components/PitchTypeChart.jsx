@@ -1,6 +1,9 @@
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, CartesianGrid } from "recharts";
 
-const COLORS = ["#d6453c", "#c98a3a", "#e0b73a", "#4f8f5f", "#2e63b8", "#7d5ba6", "#8a9a8d", "#5a655d"];
+// Exported so other views (the 3D trajectory scene) can color-match a given
+// ranked pitch to the exact same bar color shown here, instead of picking
+// their own separate palette.
+export const COLORS = ["#d6453c", "#c98a3a", "#e0b73a", "#4f8f5f", "#2e63b8", "#7d5ba6", "#8a9a8d", "#5a655d"];
 
 function PitchTooltip({ active, payload }) {
   if (!active || !payload || !payload.length) return null;

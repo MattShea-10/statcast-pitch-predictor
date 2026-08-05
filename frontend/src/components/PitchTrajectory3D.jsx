@@ -3,6 +3,7 @@ import { Canvas, useFrame, useThree } from "@react-three/fiber";
 import { OrbitControls, Line, Html } from "@react-three/drei";
 import * as THREE from "three";
 import { buildPitchCurve, pitchDurationSeconds, ZONE_COORDS, batterBoxCenter } from "../three/pitchGeometry";
+import { COLORS as PITCH_CHART_COLORS } from "./PitchTypeChart";
 
 // Real strike-zone cell size (feet) for the in-zone 3x3 grid; corner "chase"
 // zone cells are drawn a bit smaller than their spacing so they read as
@@ -392,8 +393,9 @@ function PitchBall({ curve, duration, trigger, color = "#ffffff" }) {
 
 // One ranked pitch's full flight path: the arc, the moving ball, and a
 // floating rank/name/probability label parked just past where it arrives --
-// used to show the #1 and #2 most likely pitches at once, each in its own
-// color, instead of only ever showing a single "the" prediction.
+// used to show up to the top 5 most likely pitches at once (user-selectable
+// count), each in its own color, instead of only ever showing a single "the"
+// prediction.
 function RankedPitchTrail({ rank, code, zone, throwsR, trigger, color, name, probability }) {
   const curve = useMemo(() => buildPitchCurve(code, zone, throwsR), [code, zone, throwsR]);
   const duration = useMemo(() => pitchDurationSeconds(code), [code]);
@@ -426,7 +428,10 @@ function RankedPitchTrail({ rank, code, zone, throwsR, trigger, color, name, pro
   );
 }
 
-const RANK_COLORS = ["#e0b73a", "#5aa9e6"];
+// Same palette (and same index-by-rank assignment) as the pitch-type bar
+// chart, so pitch #1 flies the same color as its bar there, #2 matches its
+// bar, and so on -- one consistent color per ranked pitch across both views.
+const RANK_COLORS = PITCH_CHART_COLORS;
 
 function CameraRig({ preset, standR, panX }) {
   const { camera, controls } = useThree();
@@ -459,13 +464,14 @@ export default function PitchTrajectory3D({ pitchCode, pitchName, zone, zoneData
   const [panX, setPanX] = useState(0);
   const hasPrediction = Boolean(pitchCode && zone);
 
-  // The top 2 ranked pitches to actually fly across the zone, each with its
-  // own most-likely landing zone. Falls back to the single active pitch if
-  // topPitches wasn't provided (or only has one usable entry), so this still
+  // The ranked pitches to actually fly across the zone at once (however many
+  // the caller passed in, up to the 5 colors available), each with its own
+  // most-likely landing zone. Falls back to the single active pitch if
+  // topPitches wasn't provided (or has no usable entries), so this still
   // works from anywhere that hasn't been updated to pass ranked pitches.
   const rankedTrails = useMemo(() => {
     const list = (topPitches || []).filter((p) => p.code && p.zone != null);
-    if (list.length > 0) return list.slice(0, 2);
+    if (list.length > 0) return list.slice(0, RANK_COLORS.length);
     return hasPrediction ? [{ code: pitchCode, name: pitchName, zone, probability: null }] : [];
   }, [topPitches, hasPrediction, pitchCode, pitchName, zone]);
 
@@ -596,7 +602,7 @@ export default function PitchTrajectory3D({ pitchCode, pitchName, zone, zoneData
       <div className="absolute bottom-2 left-1/2 w-[85%] -translate-x-1/2 text-center text-[10px] text-base-content/40 sm:bottom-4 sm:w-auto sm:text-[11px]">
         {hasPrediction
           ? rankedTrails.length > 1
-            ? `Top 2: ${rankedTrails.map((p) => p.name).join(" & ")} · drag to orbit, scroll to zoom`
+            ? `Top ${rankedTrails.length}: ${rankedTrails.map((p) => p.name).join(", ")} · drag to orbit, scroll to zoom`
             : `${pitchName} · drag to orbit, scroll to zoom`
           : "Trajectory shape reflects each pitch type's typical velocity and movement — illustrative, not a physics reconstruction."}
       </div>
