@@ -291,6 +291,11 @@ export default function App() {
         zone: (manuallyPickedIndex < 2
           ? bestZone(result?.zone_by_pitch?.[manuallyPickedPitch.code])
           : bestInZone(result?.zone_by_pitch?.[manuallyPickedPitch.code]))?.zone ?? null,
+        // True rank + bar-chart color index, not this array's position (it's
+        // always the only entry here) -- so e.g. picking the 4th-ranked pitch
+        // still shows "#4" in the same color as the 4th bar in the chart.
+        rank: manuallyPickedIndex + 1,
+        colorIndex: manuallyPickedIndex,
       }]
     : null;
 

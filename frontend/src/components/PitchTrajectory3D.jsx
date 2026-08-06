@@ -503,16 +503,21 @@ export default function PitchTrajectory3D({ pitchCode, pitchName, zone, zoneData
         <BatterBox side={standR ? 1 : -1} active={false} />
         <StrikeZone zoneData={hasPrediction ? zoneData : null} />
         {rankedTrails.map((p, i) => (
+          // rank/colorIndex default to this trail's position in the array
+          // (i), but a caller can override them -- used for a single
+          // manually-picked pitch (App.jsx's manualTrail) so a #4 pick still
+          // shows "#4" and the #4 bar's color, instead of always reading as
+          // "#1" in the #1 color just because it's the only entry here.
           <RankedPitchTrail
             key={p.code + i}
-            rank={i + 1}
+            rank={p.rank ?? i + 1}
             code={p.code}
             zone={p.zone}
             name={p.name}
             probability={p.probability ?? 0}
             throwsR={throwsR}
             trigger={trigger}
-            color={RANK_COLORS[i] || RANK_COLORS[0]}
+            color={RANK_COLORS[(p.colorIndex ?? i) % RANK_COLORS.length]}
           />
         ))}
         <CameraRig preset={preset} standR={standR} panX={panX} />
