@@ -154,7 +154,13 @@ const CAMERA_PRESETS = {
   // away from home plate in a normal FOV -- pulled in closer for a tighter,
   // more immersive framing while still reading as "standing on the mound."
   pitcher: { position: [0, 5.5, 40], target: [0, 2.5, 0], label: "Pitcher" },
-  mound: { position: [0, 9, 66], target: [0, 3, 5], label: "Mound" },
+  // A real pitcher's eye-line: standing at the rubber (z=60.5) at roughly
+  // eye height (~6.5ft, mound top + a standing player's eyes), looking
+  // straight down the throwing lane at the catcher's target just in front
+  // of home plate -- not the old z=66/y=9 spot, which sat behind and well
+  // above the rubber and read as an odd elevated/backward angle rather than
+  // "the pitcher looking at home plate."
+  mound: { position: [0, 6.5, 61], target: [0, 2.6, -3], label: "Mound" },
   leftSide: { position: [-32, 9, 10], target: [0, 3, 5], targetsBatter: true, label: "Left Side" },
   rightSide: { position: [32, 9, 10], target: [0, 3, 5], targetsBatter: true, label: "Right Side" },
   top: { position: [0.01, 34, 0.01], target: [0, 0, 0], label: "Top" },
