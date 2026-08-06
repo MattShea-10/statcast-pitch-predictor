@@ -272,20 +272,25 @@ export default function App() {
   // Clicking a specific bar in the pitch-type chart (setting selectedPitch)
   // is a deliberate "show me THIS one" pick, even if it isn't one of the
   // currently-flying top-N ranked pitches -- so it overrides the top-N group
-  // in the 3D scene with just that single pitch's own trajectory/location,
-  // using the same honest ball-vs-strike-aware zone as the top 2 (this is an
-  // explicit choice, not an automatic lower-rank fallback). Reverts to the
-  // top-N group again once a new prediction runs (selectedPitch resets then)
-  // or the user clicks back to whichever pitch is already #1.
-  const manuallyPickedPitch = selectedPitch
-    ? result?.pitch_type?.find((p) => p.code === selectedPitch)
-    : null;
+  // in the 3D scene with just that single pitch's own trajectory/location.
+  // Same rank-based zone rule as the automatic top-N group: rank 1-2 use the
+  // honest ball-vs-strike-aware pick, rank 3+ use the best in-zone (highest
+  // strike-zone %) cell instead, whether that pitch got there by being
+  // clicked directly or by already being part of the top-N group. Reverts to
+  // the top-N group again once a new prediction runs (selectedPitch resets
+  // then) or the user clicks back to whichever pitch is already #1.
+  const manuallyPickedIndex = selectedPitch
+    ? (result?.pitch_type || []).findIndex((p) => p.code === selectedPitch)
+    : -1;
+  const manuallyPickedPitch = manuallyPickedIndex >= 0 ? result.pitch_type[manuallyPickedIndex] : null;
   const manualTrail = manuallyPickedPitch
     ? [{
         code: manuallyPickedPitch.code,
         name: manuallyPickedPitch.name,
         probability: manuallyPickedPitch.probability,
-        zone: bestZone(result?.zone_by_pitch?.[manuallyPickedPitch.code])?.zone ?? null,
+        zone: (manuallyPickedIndex < 2
+          ? bestZone(result?.zone_by_pitch?.[manuallyPickedPitch.code])
+          : bestInZone(result?.zone_by_pitch?.[manuallyPickedPitch.code]))?.zone ?? null,
       }]
     : null;
 
