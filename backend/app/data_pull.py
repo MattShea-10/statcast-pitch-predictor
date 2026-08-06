@@ -97,6 +97,39 @@ def build_player_table(df: pd.DataFrame) -> pd.DataFrame:
             else:
                 pitcher_name_from_data[int(pid)] = raw.strip()
 
+    # Batters have no player_name-style column in Statcast pitch data (that
+    # column is always the PITCHER), so for any batter ids the Chadwick
+    # lookup missed, ask MLB's official Stats API directly -- it maps any
+    # MLBAM id to a full name, including brand-new call-ups the register
+    # hasn't indexed yet. Batched (the API accepts many ids per request) and
+    # only for the ids actually missing, so it's at most a couple of quick
+    # requests per refresh.
+    still_missing = [
+        pid for pid in all_ids
+        if pid not in id_to_name and int(pid) not in pitcher_name_from_data
+    ]
+    if still_missing:
+        import requests
+        print(f"Resolving {len(still_missing)} remaining ids via MLB Stats API...")
+        BATCH = 100
+        for i in range(0, len(still_missing), BATCH):
+            batch = still_missing[i:i + BATCH]
+            try:
+                resp = requests.get(
+                    "https://statsapi.mlb.com/api/v1/people",
+                    params={"personIds": ",".join(str(int(p)) for p in batch)},
+                    timeout=30,
+                )
+                resp.raise_for_status()
+                for person in resp.json().get("people", []):
+                    full_name = person.get("fullName")
+                    if full_name:
+                        id_to_name[int(person["id"])] = full_name
+            except Exception as e:
+                # Name resolution is cosmetic -- never fail the whole data
+                # pull over it; the affected players just keep placeholders.
+                print(f"MLB Stats API name lookup failed for a batch: {e}")
+
     # Pitcher handedness comes straight from p_throws; batter handedness from stand.
     pitcher_throws = df.groupby("pitcher")["p_throws"].agg(lambda s: s.mode().iat[0])
     batter_stands = df.groupby("batter")["stand"].agg(lambda s: s.mode().iat[0])
