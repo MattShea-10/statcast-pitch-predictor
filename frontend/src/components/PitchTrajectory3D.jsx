@@ -150,10 +150,14 @@ function Infield() {
 // than a fixed downfield point.
 const CAMERA_PRESETS = {
   catcher: { position: [0, 6, -13], target: [0, 3, 25], targetsBatter: true, label: "Catcher" },
-  // z=56 (right at the real ~55ft release point) reads as noticeably far
-  // away from home plate in a normal FOV -- pulled in closer for a tighter,
-  // more immersive framing while still reading as "standing on the mound."
-  pitcher: { position: [0, 5.5, 40], target: [0, 2.5, 0], label: "Pitcher" },
+  // The release-point view: roughly where the ball actually leaves the
+  // hand mid-delivery (real extension is ~5-6ft in front of the rubber, at
+  // arm height), looking at the catcher's target. Previously this floated
+  // at an arbitrary z=40 with nothing nearby to ground it -- now that
+  // "Mound" covers the standing-on-the-rubber eye-line, this is grounded
+  // right at the mound instead, just lower/further forward than Mound to
+  // read as a distinct, purposeful angle rather than a duplicate.
+  pitcher: { position: [0, 5.7, 56], target: [0, 2.4, -4], label: "Pitcher" },
   // A real pitcher's eye-line: standing at the rubber (z=60.5) at roughly
   // eye height (~6.5ft, mound top + a standing player's eyes), looking
   // straight down the throwing lane at the catcher's target just in front
