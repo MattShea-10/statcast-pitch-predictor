@@ -144,12 +144,16 @@ function Infield() {
   );
 }
 
-// Presets whose view is "behind, left, or right" of home plate are marked
+// Presets whose view is "left or right" of home plate are marked
 // targetsBatter: true so they orbit around wherever the actual batter is
 // standing (which side of the plate depends on batter handedness) rather
-// than a fixed downfield point.
+// than a fixed downfield point. Catcher intentionally does NOT do this --
+// its job is a straight, centered look down the pitcher-to-plate corridor;
+// aiming it at the batter box instead (which sits off to one side) pulled
+// the whole field visually off-center on the default view depending on
+// which way the batter stood.
 const CAMERA_PRESETS = {
-  catcher: { position: [0, 6, -13], target: [0, 3, 25], targetsBatter: true, label: "Catcher" },
+  catcher: { position: [0, 6, -13], target: [0, 3, 25], label: "Catcher" },
   // The release-point view: roughly where the ball actually leaves the
   // hand mid-delivery (real extension is ~5-6ft in front of the rubber, at
   // arm height), looking at the catcher's target. Previously this floated

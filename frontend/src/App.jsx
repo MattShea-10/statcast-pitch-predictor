@@ -252,71 +252,65 @@ export default function App() {
     return pool.reduce((a, b) => (b.probability > a.probability ? b : a));
   }
 
+  // When exactly one pitch is on screen -- either the "Show top" selector is
+  // set to 1, or a specific bar was clicked -- show TWO flights for it
+  // instead of one: its single most likely spot overall (honest, can be a
+  // ball off the plate) AND its most likely STRIKE-ZONE cell, so "where's it
+  // really going" and "where would it be if it's a strike" are both visible.
+  // Collapses to one flight if those two picks land on the same cell. `rank`
+  // and `colorIndex` are passed through explicitly (rather than left to each
+  // trail's position in the array) so the color/label always match this
+  // pitch's real rank/bar, even though it may be the only entry here.
+  function dualTrail(pitch, rankIndex) {
+    const dist = result?.zone_by_pitch?.[pitch.code];
+    const overallPick = bestZone(dist);
+    const strikePick = bestInZone(dist);
+    const base = { code: pitch.code, probability: pitch.probability, rank: rankIndex + 1, colorIndex: rankIndex };
+    const trail = [];
+    if (overallPick?.zone != null) {
+      trail.push({
+        ...base,
+        zone: overallPick.zone,
+        name: strikePick && strikePick.zone !== overallPick.zone
+          ? `${pitch.name} (most likely)`
+          : pitch.name,
+      });
+    }
+    if (strikePick?.zone != null && strikePick.zone !== overallPick?.zone) {
+      trail.push({ ...base, zone: strikePick.zone, name: `${pitch.name} (best strike)` });
+    }
+    return trail.length ? trail : null;
+  }
+
   // The top N most likely pitches (already ranked by probability, N picked
   // by the user via the selector below), each paired with where THAT
   // specific pitch tends to go -- so the 3D view can fly all N realistic
-  // paths at once instead of just the single top pick. Only the top 2 use
-  // the honest ball-vs-strike-aware pick; ranks 3-5 are routed to their most
-  // likely in-zone (strike) location instead -- see bestInZone above.
-  const topNPitches = (result?.pitch_type || []).slice(0, topNCount).map((p, i) => {
-    const zoneDist = result?.zone_by_pitch?.[p.code];
-    const zonePick = i < 2 ? bestZone(zoneDist) : bestInZone(zoneDist);
-    return {
-      code: p.code,
-      name: p.name,
-      probability: p.probability,
-      zone: zonePick?.zone ?? null,
-    };
-  });
+  // paths at once instead of just the single top pick. When N is 1 this
+  // defers to dualTrail above (most-likely + best-strike for that one
+  // pitch); for N of 2+, each pitch gets one trajectory each instead --
+  // showing two flights per pitch for a whole group would clutter the scene.
+  // Among those single trajectories, only the top 2 use the honest
+  // ball-vs-strike-aware pick; ranks 3-5 are routed to their most likely
+  // in-zone (strike) location instead -- see bestInZone above.
+  const topNPitches = topNCount === 1
+    ? (result?.pitch_type?.[0] ? dualTrail(result.pitch_type[0], 0) : null)
+    : (result?.pitch_type || []).slice(0, topNCount).map((p, i) => {
+        const zoneDist = result?.zone_by_pitch?.[p.code];
+        const zonePick = i < 2 ? bestZone(zoneDist) : bestInZone(zoneDist);
+        return { code: p.code, name: p.name, probability: p.probability, zone: zonePick?.zone ?? null };
+      });
 
   // Clicking a specific bar in the pitch-type chart (setting selectedPitch)
   // is a deliberate "show me THIS one" pick, even if it isn't one of the
   // currently-flying top-N ranked pitches -- so it overrides the top-N group
-  // in the 3D scene with that single pitch's own trajectories: one flight to
-  // its single most likely spot overall (which can honestly be a ball, off
-  // the plate), and a second flight to its most likely STRIKE-ZONE cell, so
-  // both "where's it really going" and "where would it be if it's a strike"
-  // are visible at once. When those two picks are the same cell, only one
-  // trajectory shows. Both use the clicked bar's own chart color; the labels
-  // distinguish them. Reverts to the top-N group once a new prediction runs
+  // in the 3D scene with that single pitch's own dual trajectory (see
+  // dualTrail above). Reverts to the top-N group once a new prediction runs
   // (selectedPitch resets then).
   const manuallyPickedIndex = selectedPitch
     ? (result?.pitch_type || []).findIndex((p) => p.code === selectedPitch)
     : -1;
   const manuallyPickedPitch = manuallyPickedIndex >= 0 ? result.pitch_type[manuallyPickedIndex] : null;
-  let manualTrail = null;
-  if (manuallyPickedPitch) {
-    const dist = result?.zone_by_pitch?.[manuallyPickedPitch.code];
-    const overallPick = bestZone(dist);
-    const strikePick = bestInZone(dist);
-    const base = {
-      code: manuallyPickedPitch.code,
-      probability: manuallyPickedPitch.probability,
-      // True rank + bar-chart color index, not this array's position -- so
-      // e.g. picking the 4th-ranked pitch still shows "#4" in the same color
-      // as the 4th bar in the chart.
-      rank: manuallyPickedIndex + 1,
-      colorIndex: manuallyPickedIndex,
-    };
-    manualTrail = [];
-    if (overallPick?.zone != null) {
-      manualTrail.push({
-        ...base,
-        zone: overallPick.zone,
-        name: strikePick && strikePick.zone !== overallPick.zone
-          ? `${manuallyPickedPitch.name} (most likely)`
-          : manuallyPickedPitch.name,
-      });
-    }
-    if (strikePick?.zone != null && strikePick.zone !== overallPick?.zone) {
-      manualTrail.push({
-        ...base,
-        zone: strikePick.zone,
-        name: `${manuallyPickedPitch.name} (best strike)`,
-      });
-    }
-    if (manualTrail.length === 0) manualTrail = null;
-  }
+  const manualTrail = manuallyPickedPitch ? dualTrail(manuallyPickedPitch, manuallyPickedIndex) : null;
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-y-auto font-mono text-base-content lg:fixed lg:inset-0 lg:block lg:overflow-hidden">
