@@ -272,32 +272,51 @@ export default function App() {
   // Clicking a specific bar in the pitch-type chart (setting selectedPitch)
   // is a deliberate "show me THIS one" pick, even if it isn't one of the
   // currently-flying top-N ranked pitches -- so it overrides the top-N group
-  // in the 3D scene with just that single pitch's own trajectory/location.
-  // Same rank-based zone rule as the automatic top-N group: rank 1-2 use the
-  // honest ball-vs-strike-aware pick, rank 3+ use the best in-zone (highest
-  // strike-zone %) cell instead, whether that pitch got there by being
-  // clicked directly or by already being part of the top-N group. Reverts to
-  // the top-N group again once a new prediction runs (selectedPitch resets
-  // then) or the user clicks back to whichever pitch is already #1.
+  // in the 3D scene with that single pitch's own trajectories: one flight to
+  // its single most likely spot overall (which can honestly be a ball, off
+  // the plate), and a second flight to its most likely STRIKE-ZONE cell, so
+  // both "where's it really going" and "where would it be if it's a strike"
+  // are visible at once. When those two picks are the same cell, only one
+  // trajectory shows. Both use the clicked bar's own chart color; the labels
+  // distinguish them. Reverts to the top-N group once a new prediction runs
+  // (selectedPitch resets then).
   const manuallyPickedIndex = selectedPitch
     ? (result?.pitch_type || []).findIndex((p) => p.code === selectedPitch)
     : -1;
   const manuallyPickedPitch = manuallyPickedIndex >= 0 ? result.pitch_type[manuallyPickedIndex] : null;
-  const manualTrail = manuallyPickedPitch
-    ? [{
-        code: manuallyPickedPitch.code,
-        name: manuallyPickedPitch.name,
-        probability: manuallyPickedPitch.probability,
-        zone: (manuallyPickedIndex < 2
-          ? bestZone(result?.zone_by_pitch?.[manuallyPickedPitch.code])
-          : bestInZone(result?.zone_by_pitch?.[manuallyPickedPitch.code]))?.zone ?? null,
-        // True rank + bar-chart color index, not this array's position (it's
-        // always the only entry here) -- so e.g. picking the 4th-ranked pitch
-        // still shows "#4" in the same color as the 4th bar in the chart.
-        rank: manuallyPickedIndex + 1,
-        colorIndex: manuallyPickedIndex,
-      }]
-    : null;
+  let manualTrail = null;
+  if (manuallyPickedPitch) {
+    const dist = result?.zone_by_pitch?.[manuallyPickedPitch.code];
+    const overallPick = bestZone(dist);
+    const strikePick = bestInZone(dist);
+    const base = {
+      code: manuallyPickedPitch.code,
+      probability: manuallyPickedPitch.probability,
+      // True rank + bar-chart color index, not this array's position -- so
+      // e.g. picking the 4th-ranked pitch still shows "#4" in the same color
+      // as the 4th bar in the chart.
+      rank: manuallyPickedIndex + 1,
+      colorIndex: manuallyPickedIndex,
+    };
+    manualTrail = [];
+    if (overallPick?.zone != null) {
+      manualTrail.push({
+        ...base,
+        zone: overallPick.zone,
+        name: strikePick && strikePick.zone !== overallPick.zone
+          ? `${manuallyPickedPitch.name} (most likely)`
+          : manuallyPickedPitch.name,
+      });
+    }
+    if (strikePick?.zone != null && strikePick.zone !== overallPick?.zone) {
+      manualTrail.push({
+        ...base,
+        zone: strikePick.zone,
+        name: `${manuallyPickedPitch.name} (best strike)`,
+      });
+    }
+    if (manualTrail.length === 0) manualTrail = null;
+  }
 
   return (
     <div className="relative flex min-h-screen flex-col overflow-y-auto font-mono text-base-content lg:fixed lg:inset-0 lg:block lg:overflow-hidden">
