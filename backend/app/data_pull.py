@@ -75,6 +75,28 @@ def build_player_table(df: pd.DataFrame) -> pd.DataFrame:
     lookup["name"] = (lookup["name_first"].str.title() + " " + lookup["name_last"].str.title())
     id_to_name = dict(zip(lookup["mlbam"], lookup["name"]))
 
+    # playerid_reverse_lookup (the Chadwick register) lags for recent
+    # call-ups/debuts, which is why some players were showing up as generic
+    # "Pitcher 123456" placeholders instead of a real name. Statcast's own
+    # "player_name" column -- always populated, since it's literally who
+    # threw that pitch -- is a much more reliable primary source for
+    # pitchers specifically, so it's used ahead of the lookup table rather
+    # than only as a last-resort fallback. It comes as "Last, First"; reflow
+    # to "First Last" to match the lookup table's format.
+    pitcher_name_from_data = {}
+    if "player_name" in df.columns:
+        raw_names = df.groupby("pitcher")["player_name"].agg(
+            lambda s: s.mode().iat[0] if not s.mode().empty else None
+        )
+        for pid, raw in raw_names.items():
+            if not raw or pd.isna(raw):
+                continue
+            if "," in raw:
+                last, first = [part.strip() for part in raw.split(",", 1)]
+                pitcher_name_from_data[int(pid)] = f"{first} {last}"
+            else:
+                pitcher_name_from_data[int(pid)] = raw.strip()
+
     # Pitcher handedness comes straight from p_throws; batter handedness from stand.
     pitcher_throws = df.groupby("pitcher")["p_throws"].agg(lambda s: s.mode().iat[0])
     batter_stands = df.groupby("batter")["stand"].agg(lambda s: s.mode().iat[0])
@@ -137,7 +159,7 @@ def build_player_table(df: pd.DataFrame) -> pd.DataFrame:
     for pid in pitcher_ids:
         rows.append({
             "id": int(pid),
-            "name": id_to_name.get(pid, f"Pitcher {pid}"),
+            "name": pitcher_name_from_data.get(int(pid)) or id_to_name.get(pid, f"Pitcher {pid}"),
             "role": "pitcher",
             "throws": pitcher_throws.get(pid, "R"),
             "team": pitcher_team_map.get(pid, ""),
