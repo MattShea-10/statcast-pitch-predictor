@@ -269,6 +269,26 @@ export default function App() {
     };
   });
 
+  // Clicking a specific bar in the pitch-type chart (setting selectedPitch)
+  // is a deliberate "show me THIS one" pick, even if it isn't one of the
+  // currently-flying top-N ranked pitches -- so it overrides the top-N group
+  // in the 3D scene with just that single pitch's own trajectory/location,
+  // using the same honest ball-vs-strike-aware zone as the top 2 (this is an
+  // explicit choice, not an automatic lower-rank fallback). Reverts to the
+  // top-N group again once a new prediction runs (selectedPitch resets then)
+  // or the user clicks back to whichever pitch is already #1.
+  const manuallyPickedPitch = selectedPitch
+    ? result?.pitch_type?.find((p) => p.code === selectedPitch)
+    : null;
+  const manualTrail = manuallyPickedPitch
+    ? [{
+        code: manuallyPickedPitch.code,
+        name: manuallyPickedPitch.name,
+        probability: manuallyPickedPitch.probability,
+        zone: bestZone(result?.zone_by_pitch?.[manuallyPickedPitch.code])?.zone ?? null,
+      }]
+    : null;
+
   return (
     <div className="relative flex min-h-screen flex-col overflow-y-auto font-mono text-base-content lg:fixed lg:inset-0 lg:block lg:overflow-hidden">
       {/* 3D scene: a fixed-height panel in normal page flow on small
@@ -279,7 +299,7 @@ export default function App() {
           pitchName={activePitchName}
           zone={bestZone(activeZoneData)?.zone}
           zoneData={activeZoneData}
-          topPitches={topNPitches}
+          topPitches={manualTrail || topNPitches}
           throwsR={pitcher ? pitcher.throws === "R" : true}
           standR={batter ? effectiveStand === "R" : true}
         />

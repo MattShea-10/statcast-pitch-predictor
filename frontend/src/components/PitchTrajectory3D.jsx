@@ -172,26 +172,6 @@ const CAMERA_PRESETS = {
   vsLHB: { position: [15, 7, 4], target: [2.7, 2, -1.5], label: "Vs LHB" },
 };
 
-// Keep the free-roam camera (drag-to-orbit, scroll-to-zoom, and the manual
-// pan buttons) from wandering past a few feet behind the catcher or a few
-// feet behind the pitcher's mound (60.5ft) -- the whole scene is built
-// around that pitcher/catcher/batter corridor, so there's nothing useful
-// past those bounds anyway.
-const CAMERA_MIN_Z = -18; // a few feet behind the catcher
-const CAMERA_MAX_Z = 68; // a few feet behind the pitcher's mound
-
-function CameraBoundary() {
-  const { camera, controls } = useThree();
-  useFrame(() => {
-    const z = camera.position.z;
-    if (z < CAMERA_MIN_Z || z > CAMERA_MAX_Z) {
-      camera.position.z = Math.min(CAMERA_MAX_Z, Math.max(CAMERA_MIN_Z, z));
-      if (controls) controls.update();
-    }
-  });
-  return null;
-}
-
 function Field() {
   // Wide enough to comfortably hold first/third base (63.6ft either side
   // of home) and deep enough to reach past second base, even though the
@@ -536,7 +516,6 @@ export default function PitchTrajectory3D({ pitchCode, pitchName, zone, zoneData
           />
         ))}
         <CameraRig preset={preset} standR={standR} panX={panX} />
-        <CameraBoundary />
         <OrbitControls makeDefault maxDistance={90} minDistance={8} />
       </Canvas>
 
