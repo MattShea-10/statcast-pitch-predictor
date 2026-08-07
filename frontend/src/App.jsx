@@ -504,7 +504,7 @@ export default function App() {
                 <h3 className="text-[11px] uppercase tracking-wide text-base-content/50">Pitch Type</h3>
                 {result.pitch_type?.length > 0 && (
                   <label className="flex items-center gap-1.5 text-[11px] text-base-content/50">
-                    Show top
+                    Show top pitches
                     <select
                       className="select select-bordered select-xs w-auto"
                       value={topNCount}
