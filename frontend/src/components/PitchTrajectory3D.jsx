@@ -225,7 +225,11 @@ function Infield() {
 // the whole field visually off-center on the default view depending on
 // which way the batter stood.
 const CAMERA_PRESETS = {
-  catcher: { position: [0, 6, -13], target: [0, 3, 25], label: "Catcher" },
+  // Target is home plate itself (not a point downfield), so OrbitControls'
+  // pivot -- wherever a drag orbits *around* -- is the plate: dragging from
+  // this view swings the camera around home plate instead of around some
+  // point out near the mound.
+  catcher: { position: [0, 6, -13], target: [0, 1.5, 0], label: "Catcher" },
   // A pulled-back mound-to-plate view. This used to sit at z=56 -- only
   // ~1ft behind the actual release point (z=55, RELEASE_DISTANCE_FT) -- so
   // the camera was almost on top of where every pitch curve begins. That
