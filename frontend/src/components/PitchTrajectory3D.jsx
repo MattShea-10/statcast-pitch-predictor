@@ -226,14 +226,16 @@ function Infield() {
 // which way the batter stood.
 const CAMERA_PRESETS = {
   catcher: { position: [0, 6, -13], target: [0, 3, 25], label: "Catcher" },
-  // The release-point view: roughly where the ball actually leaves the
-  // hand mid-delivery (real extension is ~5-6ft in front of the rubber, at
-  // arm height), looking at the catcher's target. Previously this floated
-  // at an arbitrary z=40 with nothing nearby to ground it -- now that
-  // "Mound" covers the standing-on-the-rubber eye-line, this is grounded
-  // right at the mound instead, just lower/further forward than Mound to
-  // read as a distinct, purposeful angle rather than a duplicate.
-  pitcher: { position: [0, 5.7, 56], target: [0, 2.4, -4], label: "Pitcher" },
+  // A pulled-back mound-to-plate view. This used to sit at z=56 -- only
+  // ~1ft behind the actual release point (z=55, RELEASE_DISTANCE_FT) -- so
+  // the camera was almost on top of where every pitch curve begins. That
+  // close, perspective blows up: a couple feet of real side-to-side release
+  // offset swings wildly across the screen, which is why trajectories
+  // looked like they shot off the edges of the frame right at the start.
+  // Pulled back to give real standoff distance from the release point,
+  // aimed at home plate's front tip so the whole mound-to-plate flight sits
+  // inside the frame instead of blowing past it.
+  pitcher: { position: [0, 5.8, 75], target: [0, 2.4, 0], label: "Pitcher" },
   // A real pitcher's eye-line: standing at the rubber (z=60.5) at roughly
   // eye height (~6.5ft, mound top + a standing player's eyes), looking
   // straight down the throwing lane at the catcher's target just in front
