@@ -9,7 +9,6 @@ const ZONE_W = 120;
 const ZONE_H = Math.round(ZONE_W / 0.7085); // real strike-zone aspect ratio
 const CORNER_W = 42;
 const CORNER_H = 46;
-const PAD = 6;
 
 const W = ZONE_W + CORNER_W * 2;
 const H = ZONE_H + CORNER_H * 2;
@@ -25,13 +24,50 @@ const IN_ZONE_CELLS = {
   7: [2, 0], 8: [2, 1], 9: [2, 2],
 };
 
-// Corner zone rectangles, outside the strike zone box.
-const CORNER_RECTS = {
-  11: { x: 0, y: 0, w: CORNER_W, h: CORNER_H }, // Up-Away (top-left)
-  12: { x: ZONE_X + ZONE_W, y: 0, w: CORNER_W, h: CORNER_H }, // Up-In (top-right)
-  13: { x: 0, y: ZONE_Y + ZONE_H, w: CORNER_W, h: CORNER_H }, // Down-Away (bottom-left)
-  14: { x: ZONE_X + ZONE_W, y: ZONE_Y + ZONE_H, w: CORNER_W, h: CORNER_H }, // Down-In (bottom-right)
+// Statcast only tracks 4 out-of-zone buckets total (one per quadrant), not a
+// finer grid -- so there's no real data for the strip directly above, below,
+// or beside the zone. Rather than leave those strips blank, each corner
+// quadrant is drawn as an L-shaped polygon covering its whole quarter of the
+// ring around the strike zone (split at the zone's own center lines), so the
+// same 4 real percentages cover the full perimeter with no gaps, instead of
+// only appearing in small squares at the literal corners.
+const MID_X = W / 2;
+const MID_Y = H / 2;
+const CORNER_POLYGONS = {
+  // Up-Away (top-left): outer top-left quadrant, notched where the strike
+  // zone itself intrudes into that quadrant.
+  11: [[0, 0], [MID_X, 0], [MID_X, ZONE_Y], [ZONE_X, ZONE_Y], [ZONE_X, MID_Y], [0, MID_Y]],
+  // Up-In (top-right)
+  12: [[W, 0], [MID_X, 0], [MID_X, ZONE_Y], [ZONE_X + ZONE_W, ZONE_Y], [ZONE_X + ZONE_W, MID_Y], [W, MID_Y]],
+  // Down-Away (bottom-left)
+  13: [[0, H], [MID_X, H], [MID_X, ZONE_Y + ZONE_H], [ZONE_X, ZONE_Y + ZONE_H], [ZONE_X, MID_Y], [0, MID_Y]],
+  // Down-In (bottom-right)
+  14: [[W, H], [MID_X, H], [MID_X, ZONE_Y + ZONE_H], [ZONE_X + ZONE_W, ZONE_Y + ZONE_H], [ZONE_X + ZONE_W, MID_Y], [W, MID_Y]],
 };
+// Label position for each quadrant -- the visual "weight center" of the
+// L-shape (roughly between its outer corner and the zone edge), not a true
+// centroid, so the percentage sits in open space rather than near the notch.
+const CORNER_LABEL_POS = {
+  11: [MID_X * 0.45, MID_Y * 0.45],
+  12: [W - (W - MID_X) * 0.45, MID_Y * 0.45],
+  13: [MID_X * 0.45, H - (H - MID_Y) * 0.45],
+  14: [W - (W - MID_X) * 0.45, H - (H - MID_Y) * 0.45],
+};
+
+// The color fill is continuous around the ring now, but directly
+// above/below/beside the zone is a seam between two different corner
+// buckets (e.g. 11 and 12 meet at top-middle) and each one's own label sits
+// off to its own side -- so there's no number actually sitting at "middle
+// above" itself. These add one extra label at each of those 4 midpoints,
+// the average of the two real buckets that meet there (a blended readout,
+// not a 5th real data point) so there's something to read where the eye
+// naturally lands.
+const EDGE_MID_LABELS = [
+  { key: "top", x: MID_X, y: CORNER_H * 0.5, zones: [11, 12] },
+  { key: "bottom", x: MID_X, y: H - CORNER_H * 0.5, zones: [13, 14] },
+  { key: "left", x: CORNER_W * 0.5, y: MID_Y, zones: [11, 13] },
+  { key: "right", x: W - CORNER_W * 0.5, y: MID_Y, zones: [12, 14] },
+];
 
 function heatColor(p, maxP) {
   const t = maxP > 0 ? Math.min(1, p / maxP) : 0;
@@ -82,27 +118,30 @@ export default function StrikeZoneHeatmap({ data }) {
         </span>
       </div>
       <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`}>
-        {/* Corner "chase" zones outside the real strike zone */}
-        {Object.entries(CORNER_RECTS).map(([zone, r]) => {
+        {/* Out-of-zone "chase" regions ringing the real strike zone. Statcast
+            only tracks 4 out-of-zone buckets (one per quadrant), so there's
+            no separate real number for e.g. "high middle" vs "high left" --
+            both are part of the same Up-Away bucket and show the same
+            percentage. Each bucket's polygon is stretched to fill its whole
+            quarter of the ring so the color/percentage reads as continuous
+            coverage around the zone instead of stopping at the corners. */}
+        {Object.entries(CORNER_POLYGONS).map(([zone, points]) => {
           const { d, pct } = cellLabel(Number(zone));
+          const [lx, ly] = CORNER_LABEL_POS[zone];
           return (
             <g key={zone}>
-              <rect
-                x={r.x + PAD / 2}
-                y={r.y + PAD / 2}
-                width={r.w - PAD}
-                height={r.h - PAD}
-                rx={3}
+              <polygon
+                points={points.map(([x, y]) => `${x},${y}`).join(" ")}
                 fill={heatColor(d ? d.probability : 0, maxP)}
                 stroke="#263129"
                 strokeDasharray="3,2"
                 strokeWidth={1}
               >
                 <title>{d ? `${d.label}: ${pct}%` : ""}</title>
-              </rect>
+              </polygon>
               <text
-                x={r.x + r.w / 2}
-                y={r.y + r.h / 2 + 4}
+                x={lx}
+                y={ly + 4}
                 textAnchor="middle"
                 fontSize={11}
                 fontWeight={600}
@@ -111,6 +150,29 @@ export default function StrikeZoneHeatmap({ data }) {
                 {pct}%
               </text>
             </g>
+          );
+        })}
+
+        {/* Blended readout at the 4 seams where two corner buckets meet
+            (directly above/below/beside the zone) -- see EDGE_MID_LABELS. */}
+        {EDGE_MID_LABELS.map(({ key, x, y, zones: [zA, zB] }) => {
+          const dA = byZone[zA];
+          const dB = byZone[zB];
+          const pct = Math.round(
+            (((dA ? dA.probability : 0) + (dB ? dB.probability : 0)) / 2) * 1000
+          ) / 10;
+          return (
+            <text
+              key={key}
+              x={x}
+              y={y + 4}
+              textAnchor="middle"
+              fontSize={11}
+              fontWeight={600}
+              fill="#c7d3c9"
+            >
+              {pct}%
+            </text>
           );
         })}
 

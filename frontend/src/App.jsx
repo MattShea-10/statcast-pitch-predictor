@@ -600,6 +600,10 @@ export default function App() {
           )}
         </div>
       </aside>
+
+      <footer className="pointer-events-none relative z-10 order-5 w-full py-2 text-center text-[10px] text-base-content/30 lg:absolute lg:inset-x-0 lg:bottom-0 lg:order-none">
+        &copy; Trademark by Matt Shea
+      </footer>
     </div>
   );
 }

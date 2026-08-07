@@ -13,6 +13,78 @@ const CELL_H = 2 / 3;
 const CORNER_W = 0.85;
 const CORNER_H = 0.85;
 
+// Statcast only tracks 4 out-of-zone buckets total (one per quadrant), so
+// there's no separate real data for the strip directly above/below/beside
+// the zone -- same limitation as the 2D heatmap panel. Rather than draw the
+// 4 corner buckets as small squares that leave gaps along those strips, each
+// one is built as an L-shaped ring segment covering its whole quarter of the
+// area around the strike zone (split at the zone's own center lines), so the
+// same 4 real percentages read as continuous coverage with no dead space.
+const ZONE_LEFT = -0.56 - CELL_W / 2;
+const ZONE_RIGHT = 0.56 + CELL_W / 2;
+const ZONE_TOP = 3.17 + CELL_H / 2;
+const ZONE_BOTTOM = 1.83 - CELL_H / 2;
+const ZONE_MID_Y = (ZONE_TOP + ZONE_BOTTOM) / 2;
+const CORNER_HALF = (CORNER_W * 0.9) / 2;
+const RING_LEFT = ZONE_COORDS[11].x - CORNER_HALF;
+const RING_RIGHT = ZONE_COORDS[12].x + CORNER_HALF;
+const RING_TOP = ZONE_COORDS[11].y + CORNER_HALF;
+const RING_BOTTOM = ZONE_COORDS[13].y - CORNER_HALF;
+
+function cornerRingShape(zoneNum) {
+  const s = new THREE.Shape();
+  if (zoneNum === 11) { // Up-Away (top-left)
+    s.moveTo(RING_LEFT, RING_TOP);
+    s.lineTo(0, RING_TOP);
+    s.lineTo(0, ZONE_TOP);
+    s.lineTo(ZONE_LEFT, ZONE_TOP);
+    s.lineTo(ZONE_LEFT, ZONE_MID_Y);
+    s.lineTo(RING_LEFT, ZONE_MID_Y);
+  } else if (zoneNum === 12) { // Up-In (top-right)
+    s.moveTo(RING_RIGHT, RING_TOP);
+    s.lineTo(0, RING_TOP);
+    s.lineTo(0, ZONE_TOP);
+    s.lineTo(ZONE_RIGHT, ZONE_TOP);
+    s.lineTo(ZONE_RIGHT, ZONE_MID_Y);
+    s.lineTo(RING_RIGHT, ZONE_MID_Y);
+  } else if (zoneNum === 13) { // Down-Away (bottom-left)
+    s.moveTo(RING_LEFT, RING_BOTTOM);
+    s.lineTo(0, RING_BOTTOM);
+    s.lineTo(0, ZONE_BOTTOM);
+    s.lineTo(ZONE_LEFT, ZONE_BOTTOM);
+    s.lineTo(ZONE_LEFT, ZONE_MID_Y);
+    s.lineTo(RING_LEFT, ZONE_MID_Y);
+  } else if (zoneNum === 14) { // Down-In (bottom-right)
+    s.moveTo(RING_RIGHT, RING_BOTTOM);
+    s.lineTo(0, RING_BOTTOM);
+    s.lineTo(0, ZONE_BOTTOM);
+    s.lineTo(ZONE_RIGHT, ZONE_BOTTOM);
+    s.lineTo(ZONE_RIGHT, ZONE_MID_Y);
+    s.lineTo(RING_RIGHT, ZONE_MID_Y);
+  }
+  s.closePath();
+  return s;
+}
+
+function buildCornerRingShapes() {
+  return { 11: cornerRingShape(11), 12: cornerRingShape(12), 13: cornerRingShape(13), 14: cornerRingShape(14) };
+}
+
+// The ring's color fill is continuous now, but directly above/below/beside
+// the zone is a seam between two different corner buckets (e.g. 11 and 12
+// meet at top-middle), and each bucket's own label sits off to its own side
+// -- so there was no number actually sitting at "middle above" itself.
+// These add one extra label at each of those 4 midpoints, showing the
+// average of the two real buckets that meet there (not a 5th real data
+// point -- just a blended readout so there's something to read at a glance
+// where the eye naturally looks).
+const EDGE_MID_LABELS = [
+  { key: "top", x: 0, y: ZONE_COORDS[11].y, zones: [11, 12] },
+  { key: "bottom", x: 0, y: ZONE_COORDS[13].y, zones: [13, 14] },
+  { key: "left", x: ZONE_COORDS[11].x, y: ZONE_MID_Y, zones: [11, 13] },
+  { key: "right", x: ZONE_COORDS[12].x, y: ZONE_MID_Y, zones: [12, 14] },
+];
+
 function zoneHeatColor(p, maxP) {
   const t = maxP > 0 ? Math.min(1, p / maxP) : 0;
   // interpolate from dark panel tone (cold) to red accent (hot)
@@ -285,6 +357,7 @@ function StrikeZone({ zoneData }) {
     () => new THREE.ExtrudeGeometry(shape, { depth: ZONE_HEIGHT_FT, bevelEnabled: false }),
     [shape]
   );
+  const cornerRingShapes = useMemo(() => buildCornerRingShapes(), []);
 
   return (
     <group>
@@ -304,27 +377,56 @@ function StrikeZone({ zoneData }) {
         <lineBasicMaterial color="#c7d3c9" />
       </lineSegments>
 
-      {/* Location chart, overlaid cell-by-cell on the real zone */}
+      {/* Location chart, overlaid cell-by-cell on the real zone. Corner
+          "chase" buckets render as full-perimeter L-shaped ring segments
+          (see cornerRingShape above) instead of small isolated squares, so
+          there's no dead space between them; in-zone cells stay simple
+          centered planes. */}
       {Object.entries(ZONE_COORDS).map(([zoneStr, coord]) => {
         const zoneNum = Number(zoneStr);
         const isCorner = zoneNum >= 11;
-        const w = (isCorner ? CORNER_W : CELL_W) * 0.9;
-        const h = (isCorner ? CORNER_H : CELL_H) * 0.9;
         const d = byZone[zoneNum];
         const pct = d ? Math.round(d.probability * 1000) / 10 : 0;
         const color = zoneHeatColor(d ? d.probability : 0, maxP);
         const isBestStrike = bestInZone && zoneNum === bestInZone.zone;
+        const pctLabel = zoneData && (
+          <Html center distanceFactor={16} style={{ pointerEvents: "none" }}>
+            <div
+              style={{
+                fontSize: 11,
+                fontWeight: 700,
+                color: "#f5f5f0",
+                textShadow: "0 1px 3px rgba(0,0,0,0.85)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {pct}%
+            </div>
+          </Html>
+        );
 
+        if (isCorner) {
+          return (
+            <group key={zoneNum}>
+              <mesh position={[0, 0, 0.02]}>
+                <shapeGeometry args={[cornerRingShapes[zoneNum]]} />
+                <meshBasicMaterial color={color} transparent opacity={zoneData ? 0.55 : 0} side={THREE.DoubleSide} />
+              </mesh>
+              {/* coord.x/coord.y always falls inside this zone's own ring
+                  segment, so it's a safe label anchor without needing a
+                  separate centroid calculation. */}
+              {pctLabel && <group position={[coord.x, coord.y, 0.02]}>{pctLabel}</group>}
+            </group>
+          );
+        }
+
+        const w = CELL_W * 0.9;
+        const h = CELL_H * 0.9;
         return (
           <group key={zoneNum} position={[coord.x, coord.y, 0.02]}>
             <mesh>
               <planeGeometry args={[w, h]} />
-              <meshBasicMaterial
-                color={color}
-                transparent
-                opacity={zoneData ? (isCorner ? 0.55 : 0.78) : 0}
-                side={THREE.DoubleSide}
-              />
+              <meshBasicMaterial color={color} transparent opacity={zoneData ? 0.78 : 0} side={THREE.DoubleSide} />
             </mesh>
             {isBestStrike && (
               <lineSegments>
@@ -332,21 +434,33 @@ function StrikeZone({ zoneData }) {
                 <lineBasicMaterial color="#e0b73a" linewidth={2} />
               </lineSegments>
             )}
-            {zoneData && (
-              <Html center distanceFactor={16} style={{ pointerEvents: "none" }}>
-                <div
-                  style={{
-                    fontSize: 11,
-                    fontWeight: 700,
-                    color: "#f5f5f0",
-                    textShadow: "0 1px 3px rgba(0,0,0,0.85)",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {pct}%
-                </div>
-              </Html>
-            )}
+            {pctLabel}
+          </group>
+        );
+      })}
+
+      {/* Blended readout at the 4 seams where two corner buckets meet
+          (directly above/below/beside the zone) -- see EDGE_MID_LABELS. */}
+      {zoneData && EDGE_MID_LABELS.map(({ key, x, y, zones }) => {
+        const [zA, zB] = zones;
+        const pA = byZone[zA]?.probability || 0;
+        const pB = byZone[zB]?.probability || 0;
+        const pct = Math.round(((pA + pB) / 2) * 1000) / 10;
+        return (
+          <group key={key} position={[x, y, 0.03]}>
+            <Html center distanceFactor={16} style={{ pointerEvents: "none" }}>
+              <div
+                style={{
+                  fontSize: 11,
+                  fontWeight: 700,
+                  color: "#f5f5f0",
+                  textShadow: "0 1px 3px rgba(0,0,0,0.85)",
+                  whiteSpace: "nowrap",
+                }}
+              >
+                {pct}%
+              </div>
+            </Html>
           </group>
         );
       })}
