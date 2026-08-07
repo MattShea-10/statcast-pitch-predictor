@@ -262,6 +262,59 @@ function Field() {
   );
 }
 
+// A procedurally-painted ivy texture (mottled dark-green blotches over a
+// deep-green base) rather than a loaded image file, so there's no extra
+// asset to bundle/host -- generated once per mount and tiled across the
+// wall.
+function ivyTexture() {
+  const size = 256;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  ctx.fillStyle = "#1f3d1a";
+  ctx.fillRect(0, 0, size, size);
+  const shades = ["#2c5024", "#173311", "#345c2a", "#0f2a0c", "#26451f"];
+  for (let i = 0; i < 1100; i++) {
+    ctx.fillStyle = shades[i % shades.length];
+    const x = Math.random() * size;
+    const y = Math.random() * size;
+    const r = 3 + Math.random() * 5;
+    ctx.beginPath();
+    ctx.ellipse(x, y, r, r * 0.7, Math.random() * Math.PI, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(8, 2);
+  return texture;
+}
+
+// A stylized Wrigley-style ivy-covered outfield wall, standing well behind
+// the mound so it reads as backdrop scenery (mainly visible from the
+// Catcher/Top angles, looking out past the mound) without ever sitting
+// anywhere near the pitch flight path between the mound and plate.
+const WALL_HEIGHT_FT = 14;
+const WALL_WIDTH_FT = 170;
+const WALL_Z_FT = 118;
+
+function OutfieldWall() {
+  const texture = useMemo(() => ivyTexture(), []);
+  return (
+    <group position={[0, 0, WALL_Z_FT]}>
+      <mesh position={[0, WALL_HEIGHT_FT / 2, 0]}>
+        <planeGeometry args={[WALL_WIDTH_FT, WALL_HEIGHT_FT]} />
+        <meshStandardMaterial map={texture} roughness={1} side={THREE.DoubleSide} />
+      </mesh>
+      {/* Brick-red coping along the top, like Wrigley's wall */}
+      <mesh position={[0, WALL_HEIGHT_FT + 0.15, 0]}>
+        <boxGeometry args={[WALL_WIDTH_FT, 0.3, 0.5]} />
+        <meshStandardMaterial color="#6b3a2a" roughness={0.9} />
+      </mesh>
+    </group>
+  );
+}
+
 function Mound() {
   return (
     <group position={[0, 0, 60.5]}>
@@ -616,6 +669,7 @@ export default function PitchTrajectory3D({ pitchCode, pitchName, zone, zoneData
         <ambientLight intensity={0.55} />
         <directionalLight position={[10, 20, -10]} intensity={0.85} />
         <Field />
+        <OutfieldWall />
         <Infield />
         <Mound />
         <HomePlate />
